@@ -1,0 +1,23 @@
+{
+  "name": "antigravity",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:mobile": "npm run dev --workspace=apps/mobile",
+    "dev:backend": "npm run dev --workspace=apps/backend",
+    "build:backend": "npm run build --workspace=apps/backend",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
