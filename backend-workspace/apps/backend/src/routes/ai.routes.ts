@@ -135,6 +135,7 @@ aiRoutes.post('/schedule', async (req: Request, res: Response, next: NextFunctio
           title: b.title,
           starts_at: b.starts_at,
           ends_at: b.ends_at,
+          source: 'ai' as const,
           is_completed: false,
           created_at: new Date().toISOString()
         };
