@@ -45,6 +45,7 @@ shieldRoutes.post('/toggle', async (req, res, next) => {
         // PowerShell Registry Block (Chrome/Edge URLBlocklist)
         blocklistPS += `Set-ItemProperty -Path $chromeBlockKey -Name "${index}" -Value "*${domain}*" -Force\n`;
         blocklistPS += `Set-ItemProperty -Path $edgeBlockKey -Name "${index}" -Value "*${domain}*" -Force\n`;
+        blocklistPS += `Set-ItemProperty -Path $braveBlockKey -Name "${index}" -Value "*${domain}*" -Force\n`;
         index++;
 
         if (domain.includes('youtube')) {
@@ -55,6 +56,7 @@ shieldRoutes.post('/toggle', async (req, res, next) => {
           
           blocklistPS += `Set-ItemProperty -Path $chromeBlockKey -Name "${index}" -Value "*youtu.be*" -Force\n`;
           blocklistPS += `Set-ItemProperty -Path $edgeBlockKey -Name "${index}" -Value "*youtu.be*" -Force\n`;
+          blocklistPS += `Set-ItemProperty -Path $braveBlockKey -Name "${index}" -Value "*youtu.be*" -Force\n`;
           index++;
         }
       });
@@ -73,8 +75,10 @@ shieldRoutes.post('/toggle', async (req, res, next) => {
 Copy-Item -Path "${tempPath}" -Destination "C:\\Windows\\System32\\drivers\\etc\\hosts" -Force
 $chromeKey = "HKLM:\\SOFTWARE\\Policies\\Google\\Chrome"
 $edgeKey = "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge"
+$braveKey = "HKLM:\\SOFTWARE\\Policies\\BraveSoftware\\Brave"
 $chromeBlockKey = "HKLM:\\SOFTWARE\\Policies\\Google\\Chrome\\URLBlocklist"
 $edgeBlockKey = "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge\\URLBlocklist"
+$braveBlockKey = "HKLM:\\SOFTWARE\\Policies\\BraveSoftware\\Brave\\URLBlocklist"
 `;
 
       if (enabled) {
@@ -83,18 +87,23 @@ if (-not (Test-Path $chromeKey)) { New-Item -Path $chromeKey -Force | Out-Null }
 Set-ItemProperty -Path $chromeKey -Name "DnsOverHttpsMode" -Value "off" -Force
 if (-not (Test-Path $edgeKey)) { New-Item -Path $edgeKey -Force | Out-Null }
 Set-ItemProperty -Path $edgeKey -Name "DnsOverHttpsMode" -Value "off" -Force
+if (-not (Test-Path $braveKey)) { New-Item -Path $braveKey -Force | Out-Null }
+Set-ItemProperty -Path $braveKey -Name "DnsOverHttpsMode" -Value "off" -Force
 
 if (-not (Test-Path $chromeBlockKey)) { New-Item -Path $chromeBlockKey -Force | Out-Null }
 if (-not (Test-Path $edgeBlockKey)) { New-Item -Path $edgeBlockKey -Force | Out-Null }
+if (-not (Test-Path $braveBlockKey)) { New-Item -Path $braveBlockKey -Force | Out-Null }
 ${blocklistPS}
 `;
       } else {
         psScriptContent += `
 if (Test-Path $chromeKey) { Remove-ItemProperty -Path $chromeKey -Name "DnsOverHttpsMode" -ErrorAction SilentlyContinue }
 if (Test-Path $edgeKey) { Remove-ItemProperty -Path $edgeKey -Name "DnsOverHttpsMode" -ErrorAction SilentlyContinue }
+if (Test-Path $braveKey) { Remove-ItemProperty -Path $braveKey -Name "DnsOverHttpsMode" -ErrorAction SilentlyContinue }
 
 if (Test-Path $chromeBlockKey) { Remove-Item -Path $chromeBlockKey -Recurse -Force -ErrorAction SilentlyContinue }
 if (Test-Path $edgeBlockKey) { Remove-Item -Path $edgeBlockKey -Recurse -Force -ErrorAction SilentlyContinue }
+if (Test-Path $braveBlockKey) { Remove-Item -Path $braveBlockKey -Recurse -Force -ErrorAction SilentlyContinue }
 `;
       }
 
