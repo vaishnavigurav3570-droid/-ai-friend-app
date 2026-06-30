@@ -122,7 +122,7 @@ if (Test-Path $edgeBlockKey) { Remove-Item -Path $edgeBlockKey -Recurse -Force -
         });
       });
     } catch (err: any) {
-      return res.json({ success: false, error: \`Failed to prepare script: \${err.message}\` });
+      return res.json({ success: false, error: `Failed to prepare script: ${err.message}` });
     }
   } catch (err) {
     next(err);
