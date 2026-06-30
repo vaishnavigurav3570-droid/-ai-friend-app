@@ -111,17 +111,34 @@ if (Test-Path $braveBlockKey) { Remove-Item -Path $braveBlockKey -Recurse -Force
       
       fs.writeFileSync(scriptPath, psScriptContent.trim(), 'utf8');
 
-      // ALWAYS run elevated to ensure Registry keys are applied, regardless of whether Node.js is admin
-      const psCommand = `powershell -Command "Start-Process powershell -ArgumentList '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ''${scriptPath}''' -Verb RunAs"`;
+      // Check if Node is already running as Administrator
+      let isAdmin = false;
+      try {
+        fs.writeFileSync(hostsPath, newContent, 'utf8');
+        isAdmin = true;
+      } catch (err: any) {
+        if (err.code !== 'EACCES' && err.code !== 'EPERM') {
+          throw err;
+        }
+      }
+
+      let psCommand = '';
+      if (isAdmin) {
+        // Run script directly since we already have admin privileges
+        psCommand = `powershell -ExecutionPolicy Bypass -File "${scriptPath}"`;
+      } else {
+        // Request elevation
+        psCommand = `powershell -Command "Start-Process powershell -ArgumentList '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ''${scriptPath}''' -Verb RunAs"`;
+      }
       
       return new Promise((resolve) => {
-        exec(psCommand, (execErr) => {
+        exec(psCommand, (execErr, stdout, stderr) => {
           if (execErr) {
-            console.error('PowerShell Elevation error:', execErr);
+            console.error('PowerShell Execution error:', execErr, stderr);
             resolve(res.json({
               success: false,
               permissionRequired: true,
-              error: 'Administrator permission prompt declined or failed.'
+              error: `Administrator permission prompt declined or failed: ${execErr.message}`
             }));
           } else {
             setTimeout(() => {
