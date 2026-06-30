@@ -29,7 +29,7 @@ app.use(helmet());
 app.use(cors({
   origin: env.NODE_ENV === 'production'
     ? ['https://antigravity.app']
-    : '*',
+    : true,
   credentials: true,
 }));
 app.use(morgan('short', {
