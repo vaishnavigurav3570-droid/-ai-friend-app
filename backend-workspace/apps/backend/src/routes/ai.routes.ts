@@ -11,6 +11,7 @@ import { generateSchedule } from '../services/ai/scheduling.service.js';
 import { parseVoiceTranscript } from '../services/ai/voiceParser.service.js';
 import { callAi } from '../services/ai/runner.js';
 import { logger } from '../utils/logger.js';
+import { isMock, memoryStore } from '../utils/memoryStore.js';
 
 export const aiRoutes = Router();
 
