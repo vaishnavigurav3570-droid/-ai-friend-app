@@ -26,9 +26,10 @@ export async function generateSchedule(
     deadline: string | null;
   }>,
   date: string,
-  timezone: string
+  timezone: string,
+  preferences?: string
 ): Promise<ScheduleBlock[]> {
-  const { systemPrompt, userPrompt } = getSchedulingPrompt(tasks, date, timezone);
+  const { systemPrompt, userPrompt } = getSchedulingPrompt(tasks, date, timezone, preferences);
 
   logger.info(`Generating schedule for ${date} with ${tasks.length} tasks`);
 

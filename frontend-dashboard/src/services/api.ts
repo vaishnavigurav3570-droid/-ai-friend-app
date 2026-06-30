@@ -382,6 +382,32 @@ export const api = {
     }
   },
 
+  deleteCalendarBlock: async (id: string): Promise<void> => {
+    try {
+      const res = await fetch(`${API_BASE}/calendar/blocks/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+    } catch {
+      const local: any[] = JSON.parse(localStorage.getItem('ag_calendar_blocks') || '[]');
+      const filtered = local.filter(b => b.id !== id);
+      localStorage.setItem('ag_calendar_blocks', JSON.stringify(filtered));
+    }
+  },
+
+  scheduleWithAI: async (date: string, preferences?: string): Promise<any[]> => {
+    try {
+      const res = await fetch(`${API_BASE}/ai/schedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, preferences })
+      });
+      if (!res.ok) throw new Error();
+      const response = await res.json();
+      return (response && typeof response === 'object' && 'data' in response) ? response.data : [];
+    } catch {
+      throw new Error('Failed to reach AI scheduling endpoint');
+    }
+  },
+
   toggleShield: async (enabled: boolean, apps: string[]): Promise<any> => {
     try {
       const res = await fetch(`${API_BASE}/shield/toggle`, {

@@ -76,54 +76,89 @@ aiRoutes.post('/breakdown', async (req: Request, res: Response, next: NextFuncti
 /** POST /api/ai/schedule — Generate AI calendar schedule */
 aiRoutes.post('/schedule', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { date, task_ids } = req.body;
+    const { date, task_ids, preferences } = req.body;
     if (!date) throw new AppError('date is required', 400);
 
     // Fetch pending tasks
-    let query = supabaseAdmin
-      .from('tasks')
-      .select('*')
-      .eq('user_id', req.userId!)
-      .in('status', ['pending', 'in_progress'])
-      .order('priority', { ascending: true })
-      .order('deadline', { ascending: true, nullsFirst: false });
+    let tasks: any[] = [];
+    if (isMock) {
+      tasks = memoryStore.tasks
+        .filter(t => t.user_id === req.userId && (t.status === 'pending' || t.status === 'in_progress'))
+        .sort((a, b) => a.priority - b.priority);
+      if (task_ids?.length) {
+        tasks = tasks.filter(t => task_ids.includes(t.id));
+      }
+    } else {
+      let query = supabaseAdmin
+        .from('tasks')
+        .select('*')
+        .eq('user_id', req.userId!)
+        .in('status', ['pending', 'in_progress'])
+        .order('priority', { ascending: true })
+        .order('deadline', { ascending: true, nullsFirst: false });
 
-    if (task_ids?.length) {
-      query = query.in('id', task_ids);
+      if (task_ids?.length) {
+        query = query.in('id', task_ids);
+      }
+
+      const { data } = await query;
+      tasks = data || [];
     }
 
-    const { data: tasks } = await query;
     if (!tasks?.length) {
       res.json({ success: true, data: [], message: 'No tasks to schedule' });
       return;
     }
 
-    // Get user profile for timezone
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('timezone')
-      .eq('id', req.userId!)
-      .single();
+    let timezone = 'Asia/Kolkata';
+    if (!isMock) {
+      // Get user profile for timezone
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('timezone')
+        .eq('id', req.userId!)
+        .single();
+      if (profile?.timezone) timezone = profile.timezone;
+    }
 
     // Generate schedule
-    const blocks = await generateSchedule(tasks, date, profile?.timezone || 'Asia/Kolkata');
+    const blocks = await generateSchedule(tasks, date, timezone, preferences);
 
-    // Insert calendar blocks
-    const blockRows = blocks.map((b) => ({
-      user_id: req.userId,
-      task_id: b.task_id,
-      title: b.title,
-      starts_at: b.starts_at,
-      ends_at: b.ends_at,
-      source: 'ai' as const,
-    }));
+    let inserted: any[] = [];
+    if (isMock) {
+      inserted = blocks.map(b => {
+        const newBlock = {
+          id: Math.random().toString(36).substring(2, 9),
+          user_id: req.userId!,
+          task_id: b.task_id,
+          title: b.title,
+          starts_at: b.starts_at,
+          ends_at: b.ends_at,
+          is_completed: false,
+          created_at: new Date().toISOString()
+        };
+        memoryStore.calendar_blocks.push(newBlock);
+        return newBlock;
+      });
+    } else {
+      // Insert calendar blocks
+      const blockRows = blocks.map((b) => ({
+        user_id: req.userId,
+        task_id: b.task_id,
+        title: b.title,
+        starts_at: b.starts_at,
+        ends_at: b.ends_at,
+        source: 'ai' as const,
+      }));
 
-    const { data: inserted, error } = await supabaseAdmin
-      .from('calendar_blocks')
-      .insert(blockRows)
-      .select();
+      const { data, error } = await supabaseAdmin
+        .from('calendar_blocks')
+        .insert(blockRows)
+        .select();
 
-    if (error) throw new AppError(error.message, 400);
+      if (error) throw new AppError(error.message, 400);
+      inserted = data || [];
+    }
 
     res.json({
       success: true,

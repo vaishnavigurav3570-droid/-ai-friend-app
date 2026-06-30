@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Clock, Compass, Download } from 'lucide-react';
+import { Sparkles, Clock, Compass, Download, Trash2 } from 'lucide-react';
 import { api } from '../services/api';
 import type { Task } from '../services/api';
 
@@ -17,6 +17,7 @@ export const Calendar: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [blocks, setBlocks] = useState<TimeBlock[]>([]);
   const [isScheduling, setIsScheduling] = useState(false);
+  const [preferences, setPreferences] = useState('');
 
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const times = [
@@ -84,51 +85,28 @@ export const Calendar: React.FC = () => {
 
   const handleSmartSchedule = async () => {
     setIsScheduling(true);
-    
     try {
-      for (let idx = 0; idx < tasks.length; idx++) {
-        const task = tasks[idx];
-        const dayName = days[idx % days.length];
-        const timeName = times[Math.min(idx, times.length - 1)];
-        
-        const dayIndex = days.indexOf(dayName);
-        const today = new Date();
-        const currentDay = today.getDay();
-        const targetDayOfWeek = dayIndex === 6 ? 0 : dayIndex + 1;
-        const delta = targetDayOfWeek - currentDay;
-        const eventDate = new Date(today);
-        eventDate.setDate(today.getDate() + delta);
-        
-        const timeMatch = timeName.match(/(\d+):(\d+)\s+(AM|PM)/);
-        let hours = 9;
-        if (timeMatch) {
-          hours = parseInt(timeMatch[1]);
-          if (timeMatch[3] === 'PM' && hours < 12) hours += 12;
-          if (timeMatch[3] === 'AM' && hours === 12) hours = 0;
-        }
-
-        eventDate.setHours(hours, 0, 0, 0);
-        const startISO = eventDate.toISOString();
-        
-        const endEventDate = new Date(eventDate);
-        endEventDate.setMinutes(endEventDate.getMinutes() + (task.estimated_minutes || 45));
-        const endISO = endEventDate.toISOString();
-
-        await api.createCalendarBlock({
-          title: `Focus: ${task.title}`,
-          starts_at: startISO,
-          ends_at: endISO,
-          task_id: task.id
-        });
-      }
-
+      const today = new Date().toISOString().split('T')[0];
+      await api.scheduleWithAI(today, preferences);
       await loadCalendarBlocks();
-      alert('⚡ AI has successfully scheduled and saved focus blocks to your calendar database!');
+      alert('⚡ AI has successfully scheduled and saved focus blocks to your calendar!');
     } catch (e) {
       console.error(e);
-      alert('Failed to schedule blocks on server.');
+      alert('Failed to schedule blocks on server. Check backend console.');
     } finally {
       setIsScheduling(false);
+    }
+  };
+
+  const handleDeleteBlock = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm('Are you sure you want to delete this block?')) return;
+    try {
+      await api.deleteCalendarBlock(id);
+      await loadCalendarBlocks();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete calendar block');
     }
   };
 
@@ -291,10 +269,20 @@ export const Calendar: React.FC = () => {
                             fontWeight: '600',
                             textAlign: 'left',
                             color: '#fff',
-                            boxShadow: '0 4px 10px rgba(0,0,0,0.15)'
+                            boxShadow: '0 4px 10px rgba(0,0,0,0.15)',
+                            position: 'relative'
                           }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', opacity: 0.8, marginBottom: '2px', fontSize: '9px' }}>
-                              <Clock size={8} /> {block.duration}m
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', opacity: 0.8, marginBottom: '2px', fontSize: '9px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Clock size={8} /> {block.duration}m
+                              </div>
+                              <button 
+                                onClick={(e) => handleDeleteBlock(block.id, e)}
+                                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '2px' }}
+                                title="Delete Block"
+                              >
+                                <Trash2 size={10} />
+                              </button>
                             </div>
                             <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {block.taskTitle}
@@ -314,14 +302,28 @@ export const Calendar: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <div className="glass-panel" style={{ padding: '24px' }}>
             <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Compass size={18} color="var(--accent-secondary)" /> Optimization Engine
+              <Compass size={18} color="var(--accent-secondary)" /> Daily Preferences
             </h3>
-            <p className="text-muted" style={{ fontSize: '14px', lineHeight: '1.5', marginBottom: '14px' }}>
-              Traditional calendars let you schedule anything without checking your actual brain capacity. 
+            <p className="text-muted" style={{ fontSize: '13px', lineHeight: '1.5', marginBottom: '14px' }}>
+              Tell the AI when you usually hit the gym, take lunch, or have meetings. It will schedule your tasks around these commitments!
             </p>
-            <p className="text-muted" style={{ fontSize: '14px', lineHeight: '1.5' }}>
-              Our scheduler groups tasks logically into **focus sprints** to minimize context switching overhead and block out intervals for restorative pauses.
-            </p>
+            <textarea
+              value={preferences}
+              onChange={(e) => setPreferences(e.target.value)}
+              placeholder="e.g. Gym 7-8 AM, Lunch at 1 PM, no work after 6 PM"
+              style={{
+                width: '100%',
+                height: '80px',
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '8px',
+                padding: '12px',
+                color: '#fff',
+                fontSize: '13px',
+                resize: 'none',
+                marginBottom: '10px'
+              }}
+            />
           </div>
 
           <div className="glass-panel" style={{ padding: '20px', fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', gap: '8px' }}>
