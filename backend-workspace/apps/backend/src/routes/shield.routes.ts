@@ -62,9 +62,23 @@ shieldRoutes.post('/toggle', async (req, res, next) => {
       if (writeErr.code === 'EACCES' || writeErr.code === 'EPERM') {
         try {
           const tempPath = path.join(os.tmpdir(), 'ag_hosts.tmp');
+          const scriptPath = path.join(os.tmpdir(), 'ag_shield.ps1');
           fs.writeFileSync(tempPath, newContent, 'utf8');
 
-          const psCommand = `powershell -Command "Start-Process powershell -ArgumentList '-NoProfile -WindowStyle Hidden -Command Copy-Item -Path ''${tempPath}'' -Destination ''C:\\Windows\\System32\\drivers\\etc\\hosts'' -Force' -Verb RunAs"`;
+          // Create a PowerShell script to handle both the file copy and registry edits for DoH
+          const psScriptContent = `
+Copy-Item -Path "${tempPath}" -Destination "C:\\Windows\\System32\\drivers\\etc\\hosts" -Force
+$chromeKey = "HKLM:\\SOFTWARE\\Policies\\Google\\Chrome"
+if (-not (Test-Path $chromeKey)) { New-Item -Path $chromeKey -Force | Out-Null }
+Set-ItemProperty -Path $chromeKey -Name "DnsOverHttpsMode" -Value "off" -Force
+$edgeKey = "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge"
+if (-not (Test-Path $edgeKey)) { New-Item -Path $edgeKey -Force | Out-Null }
+Set-ItemProperty -Path $edgeKey -Name "DnsOverHttpsMode" -Value "off" -Force
+ipconfig /flushdns
+          `.trim();
+          fs.writeFileSync(scriptPath, psScriptContent, 'utf8');
+
+          const psCommand = `powershell -Command "Start-Process powershell -ArgumentList '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ''${scriptPath}''' -Verb RunAs"`;
           
           return new Promise((resolve) => {
             exec(psCommand, (execErr) => {
@@ -76,11 +90,6 @@ shieldRoutes.post('/toggle', async (req, res, next) => {
                   error: 'Administrator permission prompt declined or failed.'
                 }));
               } else {
-                // Clear Windows DNS Cache immediately so blocks take effect
-                exec('ipconfig /flushdns', (dnsErr) => {
-                  if (dnsErr) console.warn('DNS flush warning:', dnsErr);
-                });
-                
                 setTimeout(() => {
                   resolve(res.json({ success: true, enabled }));
                 }, 1500);
